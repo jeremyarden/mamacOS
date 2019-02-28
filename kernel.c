@@ -28,9 +28,10 @@ void executeProgram(char *filename, int segment, int *success);
 
 int main() {
    char buffer[MAX_SECTORS*SECTOR_SIZE];
+   int scsval;
 
    makeInterrupt21();
-   handleInterrupt21(0x6, "keyproc", 0x2000, 0);
+   interrupt(0x21, 0x6, "keyproc", 0x2000, &scsval);
    while (1);
 }
 
@@ -159,12 +160,6 @@ void readFile(char *buffer, char *filename, int *success)
       readSector(buffer + j*SECTOR_SIZE, dir[n + 32*i]);
       n++;
       j++;
-      printString("asik");
-    }
-
-    if (*success == TRUE)
-    {
-      printString("kontol");
     }
   }
 }
@@ -248,8 +243,5 @@ void executeProgram(char *filename, int segment, int *success)
       putInMemory(segment, i, buffer[i]);
     }
     launchProgram(segment);
-  }
-  else if (*success == FALSE)
-  {
   }
 }
