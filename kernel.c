@@ -28,10 +28,12 @@ void executeProgram(char *filename, int segment, int *success);
 
 int main() {
    char buffer[MAX_SECTORS*SECTOR_SIZE];
-   int scsval;
 
    makeInterrupt21();
-   interrupt(0x21, 0x6, "keyproc", 0x2000, &scsval);
+   handleInterrupt21(0x1, 0, 0, 0);
+   handleInterrupt21(0x0, 0, 0, 0);
+   handleInterrupt21(0x6, "keyproc", 0x2000, 0);
+
    while (1);
 }
 
@@ -50,29 +52,56 @@ int div(int a, int b) {
    return q-1;
 }
 
+void handleInterrupt21 (int AX, int BX, int CX, int DX) {
+   char AL, AH;
+   AL = (char) (AX);
+   AH = (char) (AX >> 8);
 
-void handleInterrupt21 (int AX, int BX, int CX, int DX){
-   switch (AX) {
-      case 0x0:
+   switch (AL) {
+      case 0x00:
          printString(BX);
          break;
-      case 0x1:
+      case 0x01:
          readString(BX);
          break;
-      case 0x2:
+      case 0x02:
          readSector(BX, CX);
          break;
-      case 0x3:
+      case 0x03:
          writeSector(BX, CX);
          break;
-      case 0x4:
-         readFile(BX, CX, DX);
+      case 0x04:
+         readFile(BX, CX, DX, AH);
          break;
-      case 0x5:
-         writeFile(BX, CX, DX);
+      case 0x05:
+         writeFile(BX, CX, DX, AH);
          break;
-      case 0x6:
-         executeProgram(BX, CX, DX);
+      case 0x06:
+         executeProgram(BX, CX, DX, AH);
+         break;
+      case 0x07:
+         terminateProgram(BX);
+         break;
+      case 0x08:
+         makeDirectory(BX, CX, AH);
+         break;
+      case 0x09:
+         deleteFile(BX, CX, AH);
+         break;
+      case 0x0A:
+         deleteDirectory(BX, CX, AH);
+         break;
+      case 0x20:
+         putArgs(BX, CX);
+         break;
+      case 0x21:
+         getCurdir(BX);
+         break;
+      case 0x22:
+         getArgc(BX);
+         break;
+      case 0X23:
+         getArgv(BX, CX);
          break;
       default:
          printString("Invalid interrupt");
@@ -244,4 +273,13 @@ void executeProgram(char *filename, int segment, int *success)
     }
     launchProgram(segment);
   }
+}
+
+void readFile(char *buffer, char *path, int *result, char parentIndex)
+{
+  char dirs[SECTOR_SIZE];
+  char files[SECTOR_SIZE];
+  char sectors[SECTOR_SIZE];
+
+
 }
