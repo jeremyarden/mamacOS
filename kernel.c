@@ -290,3 +290,193 @@ void readFile(char *buffer, char *path, int *result, char parentIndex)
 
 
 }
+void makeDirectory(char *path, int *result, char parentIndex)
+{
+    char dirs[SECTOR_SIZE];
+    char files[SECTOR_SIZE];
+    char sectors[SECTOR_SIZE];
+    char checkDir[MAX_FILENAME];        //Bertingkah seperti sebuah temp dir yg menyimpan nama directory yang akan diproses
+    char currParIdx;
+    int i, cukup, row, col, idxPath,found, dirFound, arrLen;
+    
+    clear(checkDir, MAX_FILENAME);      //Mengisi checkDir dengan \0
+    readSector(dirs, DIRS_SECTOR);
+    i = 1;
+    cukup = FALSE;
+    while(!cukup && i<SECTOR_SIZE)
+    {
+        if(dirs[i] == '\0' )
+        {
+          cukup = TRUE;
+        }
+        else
+        {
+          i += 16;
+        }
+    }
+    if(!cukup)
+    {
+        *result = INSUFFICIENT_ENTRIES;
+    }
+    else
+    {
+        currParIdx = parentIndex;
+        row = 0;
+        idxPath = 0;
+        i = 0;
+        dirFound = TRUE;
+        while (path[idxPath] != '\0' && dirFound)
+        {
+            if(path[idxPath] != '/')
+            {
+               checkDir[i] = path[idxPath];
+               i++;
+               idxPath++;
+            }
+            else        //Menemukan '/'
+            {
+                found = FALSE;
+                while (row<SECTOR_SIZE && !found)
+                {
+                    col = row;
+                    if(currParIdx == dirs[col])
+                    {
+                        col++;
+                        i = 0;
+                        while (i < MAX_FILENAME - 1 && dirs[col] == checkDir[i] && dirs[col] != '\0' && checkDir[i] != '\0')
+                        {
+                            col++;
+                            i++;
+                        }
+                        if(dirs[col] == '\0' || checkDir[i] == '\0')
+                        {
+                            if(dirs[col] == '\0' && checkDir[i] == '\0')        //found
+                            {
+                                currParIdx = row;
+                                found = TRUE;
+                            }
+                            else
+                            {
+                                row = (row+1)*16;
+                            }
+                        }
+                        else if(dirs[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                        {
+                            currParIdx = row;
+                            found = TRUE;
+                        }
+                        else        //Tidak ditemukan
+                        {
+                            row = (row+1)*16;
+                        }
+                    }
+                    else
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                if(found)
+                {
+                    i = 0;
+                    idxPath++;
+                }
+                else
+                {
+                    dirFound = FALSE;
+                }
+            }
+        }   //Keluar while dengan keadaan akhir string path atau suatu directory tidak ditemukan
+        if(!dirFound)       //Suatu directory parent tidak ditemukan
+        {
+            *result = NOT_FOUND;
+        }
+        else    //Proses pembuatan directory dengan keadaan isi checkdir adalah nama directory yang ingin dibuat
+        {
+            readSector(files,FILES_SECTOR);
+            found = FALSE;
+            row = 0;
+            while (row<SECTOR_SIZE && !found)       //Untuk memeriksa apakah dir yang akan dibuat sudah ada
+            {
+                col = row;
+                if(currParIdx == files[col])
+                {
+                    col++;
+                    i = 0;
+                    while (i < MAX_FILENAME - 1 && files[col] == checkDir[i] && files[col] != '\0' && checkDir[i] != '\0')
+                    {
+                        col++;
+                        i++;
+                    }
+                    if(files[col] == '\0' || checkDir[i] == '\0')
+                    {
+                        if(files[col] == '\0' && checkDir[i] == '\0')        //found
+                        {
+                            found = TRUE;
+                        }
+                        else
+                        {
+                            row = (row+1)*16;
+                        }
+                    }
+                    else if(files[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                    {
+                        found = TRUE;
+                    }
+                    else        //Tidak ditemukan
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                else
+                {
+                    row = (row+1)*16;
+                }
+            }
+            if(found)
+            {
+                *result = ALREADY_EXISTS;
+            }
+            else
+            {
+                row = 0;
+                found = FALSE;
+                while (row < SECTOR_SIZE && !found)
+                {
+                    if(dirs[row] == '\0')
+                    {
+                        found = TRUE;
+                    }
+                    else if(dirs[row] == currParIdx)
+                    {
+                        col = row;
+                        col++;
+                        found = dirs[col] == '\0';
+                    }
+                    else
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                if(found)
+                {
+                    arrLen = sizeof(checkDir)/sizeof(char);
+                    col = row;
+                    dirs[col] = currParIdx;
+                    i = 0;
+                    col++;
+                    while (i < arrLen - 1 && checkDir[i] != '\0')
+                    {
+                        dirs[col] = checkDir[i];
+                        col++;
+                        i++;
+                    }
+                    if(checkDir != '\0')
+                    {
+                        dirs[col] = checkDir[i];
+                        *result = 0;
+                    }
+                }
+            }
+        }
+    }
+}
