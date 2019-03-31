@@ -32,8 +32,14 @@ void readFile(char *buffer, char *filename, int *success);
 void clear(char *buffer, int length);
 void writeFile(char *buffer, char *filename, int *sectors);
 void executeProgram(char *filename, int segment, int *success);
-void makeDirectory(char *path, int *result, char parentIndex);
+/*Yang baru*/
+void executeProgram(char *path, int segment, int *result, char parentIndex);
 void writeFile(char *buffer, char *path, int *sectors, char parentIndex);
+void makeDirectory(char *path, int *result, char parentIndex);
+void terminateProgram (int *result);
+void deleteFile(char *path, int *result, char parentIndex);
+void deleteDirectory(char *path, int *success, char parentIndex);
+
 
 int main() {
    char buffer[MAX_SECTORS*SECTOR_SIZE];
@@ -225,7 +231,8 @@ void writeFile(char *buffer, char *filename, int *sectors)
      }
   }
 
-  if (dirIndex < MAX_FILES) {
+  if (dirIndex < MAX_FILES)
+  {
      int i, j, sectorCount;
      for (i = 0, sectorCount = 0; i < MAX_BYTE && sectorCount < *sectors; ++i) {
         if (map[i] == EMPTY) {
@@ -268,6 +275,8 @@ void writeFile(char *buffer, char *filename, int *sectors)
   writeSector(dir, DIR_SECTOR);
 }
 
+
+
 void executeProgram(char *filename, int segment, int *success)
 {
   char buffer[MAX_SECTORS*SECTOR_SIZE];
@@ -284,12 +293,27 @@ void executeProgram(char *filename, int segment, int *success)
   }
 }
 
+void executeProgram(char *path, int segment, int *result, char parentIndex)
+{
+    char buffer[MAX_SECTORS*SECTOR_SIZE];
+    int i;
+    
+    readFile(buffer, path, result,parentIndex);
+    if (*result == TRUE)
+    {
+        for (i = 0; i < (MAX_SECTORS*SECTOR_SIZE); i++)
+        {
+            putInMemory(segment, i, buffer[i]);
+        }
+        launchProgram(segment);
+    }
+}
+
 void readFile(char *buffer, char *path, int *result, char parentIndex)
 {
   char dirs[SECTOR_SIZE];
   char files[SECTOR_SIZE];
   char sectors[SECTOR_SIZE];
-
 
 }
 
@@ -492,7 +516,7 @@ void writeFile(char *buffer, char *path, int *sectors, char parentIndex)
                         }
                         if(map[i] == '\0')
                         {
-                            map[i] = 0xFF;  //i adalah sector yang kosong dan akan diisi oleh isi file
+                            map[i] = USED;  //i adalah sector yang kosong dan akan diisi oleh isi file
                             j = 0;      //Digunakan untuk mengiterasi tempBuff
                             sectors[fileIdx+sectCount] = i;
                             clear(tempBuff,SECTOR_SIZE);
@@ -518,12 +542,12 @@ void writeFile(char *buffer, char *path, int *sectors, char parentIndex)
 void makeDirectory(char *path, int *result, char parentIndex)
 {
     char dirs[SECTOR_SIZE];
-    char files[SECTOR_SIZE];
     char checkDir[MAX_FILENAME];        //Bertingkah seperti sebuah temp dir yg menyimpan nama directory yang akan diproses
     char currParIdx;
     int i, cukup, row, col, idxPath,found, dirFound, arrLen;
     
     clear(checkDir, MAX_FILENAME);      //Mengisi checkDir dengan \0
+    clear(dirs,SECTOR_SIZE);
     readSector(dirs, DIRS_SECTOR);
     i = 1;
     cukup = FALSE;
@@ -616,24 +640,23 @@ void makeDirectory(char *path, int *result, char parentIndex)
         }
         else    //Proses pembuatan directory dengan keadaan isi checkdir adalah nama directory yang ingin dibuat
         {
-            readSector(files,FILES_SECTOR);
             found = FALSE;
             row = 0;
             while (row<SECTOR_SIZE && !found)       //Untuk memeriksa apakah dir yang akan dibuat sudah ada
             {
                 col = row;
-                if(currParIdx == files[col])
+                if(currParIdx == dirs[col])
                 {
                     col++;
                     i = 0;
-                    while (i < MAX_FILENAME - 1 && files[col] == checkDir[i] && files[col] != '\0' && checkDir[i] != '\0')
+                    while (i < MAX_FILENAME - 1 && dirs[col] == checkDir[i] && dirs[col] != '\0' && checkDir[i] != '\0')
                     {
                         col++;
                         i++;
                     }
-                    if(files[col] == '\0' || checkDir[i] == '\0')
+                    if(dirs[col] == '\0' || checkDir[i] == '\0')
                     {
-                        if(files[col] == '\0' && checkDir[i] == '\0')        //found
+                        if(dirs[col] == '\0' && checkDir[i] == '\0')        //found
                         {
                             found = TRUE;
                         }
@@ -642,7 +665,7 @@ void makeDirectory(char *path, int *result, char parentIndex)
                             row = (row+1)*16;
                         }
                     }
-                    else if(files[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                    else if(dirs[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
                     {
                         found = TRUE;
                     }
@@ -700,9 +723,317 @@ void makeDirectory(char *path, int *result, char parentIndex)
                         *result = 0;
                     }
                     writeSector(dirs,DIRS_SECTOR);
-                    
                 }
             }
         }
     }
 }
+
+void terminateProgram (int *result)
+{
+    char shell[6];
+    shell[0] = 's';
+    shell[1] = 'h';
+    shell[2] = 'e';
+    shell[3] = 'l';
+    shell[4] = 'l';
+    shell[5] = '\0';
+    executeProgram(shell, 0x2000, result, 0xFF);
+}
+
+void deleteFile(char *path, int *result, char parentIndex)
+{
+    char dirs[SECTOR_SIZE];
+    char files[SECTOR_SIZE];
+    char map[SECTOR_SIZE];
+    char sectors[SECTOR_SIZE];
+    char checkDir[MAX_FILENAME];        //Bertingkah seperti sebuah temp dir yg menyimpan nama directory yang akan diproses
+    char currParIdx;
+    int i, row, col, idxPath,found, dirFound, delRow;
+    
+    clear(checkDir, MAX_FILENAME);      //Mengisi checkDir dengan \0
+    
+    clear(dirs,SECTOR_SIZE);
+    readSector(dirs, DIRS_SECTOR);
+    
+    clear(map,SECTOR_SIZE);
+    readSector(map, MAP_SECTOR);
+    
+    clear(files,SECTOR_SIZE);
+    readSector(files, FILES_SECTOR);
+    
+    clear(sectors, SECTOR_SIZE);
+    readSector(sectors, FILES_SECTOR);
+    
+    currParIdx = parentIndex;
+    row = 0;
+    idxPath = 0;
+    i = 0;
+    dirFound = TRUE;
+    
+    while (path[idxPath] != '\0' && dirFound)
+    {
+        if(path[idxPath] != '/')
+        {
+            checkDir[i] = path[idxPath];
+            i++;
+            idxPath++;
+        }
+        else        //Menemukan '/'
+        {
+            found = FALSE;
+            while (row<SECTOR_SIZE && !found)
+            {
+                col = row;
+                if(currParIdx == dirs[col])
+                {
+                    col++;
+                    i = 0;
+                    while (i < MAX_FILENAME - 1 && dirs[col] == checkDir[i] && dirs[col] != '\0' && checkDir[i] != '\0')
+                    {
+                        col++;
+                        i++;
+                    }
+                    if(dirs[col] == '\0' || checkDir[i] == '\0')
+                    {
+                        if(dirs[col] == '\0' && checkDir[i] == '\0')        //found
+                        {
+                            currParIdx = row;
+                            found = TRUE;
+                        }
+                        else
+                        {
+                            row = (row+1)*16;
+                        }
+                    }
+                    else if(dirs[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                    {
+                        currParIdx = row;
+                        found = TRUE;
+                    }
+                    else        //Tidak ditemukan
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                else
+                {
+                    row = (row+1)*16;
+                }
+            }
+            if(found)
+            {
+                i = 0;
+                idxPath++;
+            }
+            else
+            {
+                dirFound = FALSE;
+            }
+        }
+    }   //Keluar while dengan keadaan akhir string path atau suatu directory tidak ditemukan
+    if(!dirFound)       //Suatu directory parent tidak ditemukan
+    {
+        *result = NOT_FOUND;
+    }
+    else
+    {
+        row = 0;
+        found = FALSE;
+        while (row<SECTOR_SIZE && !found)
+        {
+            col = row;
+            if(currParIdx == files[col])
+            {
+                col++;
+                i = 0;
+                while (i < MAX_FILENAME - 1 && files[col] == checkDir[i] && files[col] != '\0' && checkDir[i] != '\0')
+                {
+                    col++;
+                    i++;
+                }
+                if(files[col] == '\0' || checkDir[i] == '\0')
+                {
+                    if(files[col] == '\0' && checkDir[i] == '\0')        //found
+                    {
+                        currParIdx = row;
+                        found = TRUE;
+                    }
+                    else
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                else if(files[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                {
+                    currParIdx = row;
+                    found = TRUE;
+                }
+                else        //Tidak ditemukan
+                {
+                    row = (row+1)*16;
+                }
+            }
+            else
+            {
+                row = (row+1)*16;
+            }
+        }
+        if(!found)
+        {
+            *result = NOT_FOUND;
+        }
+        else
+        {
+            delRow = row;
+            files[delRow + 1] = '\0'
+            i = 0;
+            while (sectors[delRow + i] != '\0')
+            {
+                map[sectors[delRow+i]] = EMPTY;
+                i++;
+            }
+            *result = 0;
+            writeSector(map,MAP_SECTOR);
+            writeSector(files, FILES_SECTOR);
+        }
+    }
+}
+
+void deleteDirectory(char *path, int *success, char parentIndex)
+{
+    char dirs[SECTOR_SIZE];
+    int i, row, col, idxPath,found, dirFound;
+    
+    clear(checkDir, MAX_FILENAME);      //Mengisi checkDir dengan \0
+    
+    clear(dirs,SECTOR_SIZE);
+    readSector(dirs, DIRS_SECTOR);
+    
+    currParIdx = parentIndex;
+    row = 0;
+    idxPath = 0;
+    i = 0;
+    dirFound = TRUE;
+    
+    while (path[idxPath] != '\0' && dirFound)
+    {
+        if(path[idxPath] != '/')
+        {
+            checkDir[i] = path[idxPath];
+            i++;
+            idxPath++;
+        }
+        else        //Menemukan '/'
+        {
+            found = FALSE;
+            while (row<SECTOR_SIZE && !found)
+            {
+                col = row;
+                if(currParIdx == dirs[col])
+                {
+                    col++;
+                    i = 0;
+                    while (i < MAX_FILENAME - 1 && dirs[col] == checkDir[i] && dirs[col] != '\0' && checkDir[i] != '\0')
+                    {
+                        col++;
+                        i++;
+                    }
+                    if(dirs[col] == '\0' || checkDir[i] == '\0')
+                    {
+                        if(dirs[col] == '\0' && checkDir[i] == '\0')        //found
+                        {
+                            currParIdx = row;
+                            found = TRUE;
+                        }
+                        else
+                        {
+                            row = (row+1)*16;
+                        }
+                    }
+                    else if(dirs[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                    {
+                        currParIdx = row;
+                        found = TRUE;
+                    }
+                    else        //Tidak ditemukan
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                else
+                {
+                    row = (row+1)*16;
+                }
+            }
+            if(found)
+            {
+                i = 0;
+                idxPath++;
+            }
+            else
+            {
+                dirFound = FALSE;
+            }
+        }
+    }   //Keluar while dengan keadaan akhir string path atau suatu directory tidak ditemukan
+    if(!dirFound)       //Suatu directory parent tidak ditemukan
+    {
+        *result = NOT_FOUND;
+    }
+    else
+    {
+        row = 0;
+        found = FALSE;
+        while (row<SECTOR_SIZE && !found)
+        {
+            col = row;
+            if(currParIdx == files[col])
+            {
+                col++;
+                i = 0;
+                while (i < MAX_FILENAME - 1 && dirs[col] == checkDir[i] && dirs[col] != '\0' && checkDir[i] != '\0')
+                {
+                    col++;
+                    i++;
+                }
+                if(dirs[col] == '\0' || checkDir[i] == '\0')
+                {
+                    if(dirs[col] == '\0' && checkDir[i] == '\0')        //found
+                    {
+                        currParIdx = row;
+                        found = TRUE;
+                    }
+                    else
+                    {
+                        row = (row+1)*16;
+                    }
+                }
+                else if(dirs[col] == checkDir[i])       //kasus extreme ketika panjang dirName = 15
+                {
+                    currParIdx = row;
+                    found = TRUE;
+                }
+                else        //Tidak ditemukan
+                {
+                    row = (row+1)*16;
+                }
+            }
+            else
+            {
+                row = (row+1)*16;
+            }
+        }
+        if(!found)
+        {
+            *result = NOT_FOUND;
+        }
+        else
+        {
+            dirs[row+1] = '\0';
+            
+        }
+    }
+    
+}
+
