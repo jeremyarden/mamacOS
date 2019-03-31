@@ -1,4 +1,6 @@
 #include "kernel.c"
+#define TRUE 1
+#define FALSE 0
 
 int main() {
     char curdir = 0xFF; /* inisialisasi */
@@ -7,11 +9,11 @@ int main() {
     char dirs[512];
     char argc;
     char argv[4][16];
-
-
+    
+    
     while(1) {
         interrupt(0x21, 0x00, '$', 0x00, 0x00); /* print $ */
-
+        
         interrupt(0x21, 0x01, command, 0x00, 0x00); /* nerima input char dengan nama variabel command */
         
         interrupt(0x21, 0x02, dirs, 257, 0x00); /* read sector dirs */
@@ -33,7 +35,8 @@ int main() {
                 else {
                     /* pindah ke child dir dengan nama yang sesuai inputan */
                     int i = 0;
-                    bool ketemu = FALSE;
+                    int j,k;
+                    int ketemu = FALSE;
                     while (i*16 <= 512 || !(ketemu)) {
                         if (dirs[i*16] == curdir) {
                             j = i*16+1; /* idx ngebaca dirs */
@@ -45,7 +48,7 @@ int main() {
                                 }
                                 if ((j == i*16+15) && (command[k+1] == '\0')) { /* kasus kalo dirs udh diujung dan command udh diujung juga */
                                     curdir = i;
-                                    ketemu = TRUE
+                                    ketemu = TRUE;
                                 }
                             }
                             if (dirs[j] == command[k])  {
@@ -66,12 +69,13 @@ int main() {
         else { /* menjalankan program */
             interrupt(0x21, 0x21, &curdir, 0, 0); /* getCurdir */
             interrupt(0x21, 0x22, &argc, 0, 0); /* getArgc */
+            int i;
             for (i = 0; i < argc; ++i) {
                 interrupt(0x21, 0x23, i, argv[i], 0); /* getArgv */
             }
             interrupt(0x21, 0x20, curdir, argc, argv); /* setArgs */
             interrupt(0x21, 0x20, curdir, argc, argv); /* putArgs */
-
+            
             
         }
     }
