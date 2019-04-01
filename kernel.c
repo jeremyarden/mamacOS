@@ -62,7 +62,7 @@ int div(int a, int b) {
    return q-1;
 }
 
-void handleInterrupt21 (int AX, int BX, int CX, int DX) {
+void handleInterrupt21 (int AX, int BX, int CX, int DX) {/* condition/* condition */ */
    char AL, AH;
    AL = (char) (AX);
    AH = (char) (AX >> 8);
@@ -243,16 +243,8 @@ void writeFile(char *buffer, char *path, int *sectors, char parentIndex)
   char files[SECTOR_SIZE];
   int i, j;
 
-  i = 0;
-  clear(map, SECTOR_SIZE);
+  readSector(map, MAP_SECTOR);
 
-  while (map[i] != '\0' && i < SECTOR_SIZE)
-  {
-    i++;
-  }
-  if (i == SECTOR_SIZE)
-    *sectors = INSUFFICIENT_SECTORS;
-    return;
 
 
 }
@@ -312,34 +304,105 @@ void makeDirectory(char *path, int *result, char parentIndex)
         l++;
       }
       writeSector(dirs, DIRS_SECTOR);
+      *result = 0;
+      return;
 }
 void deleteFile(char *path, int *result, char parentIndex)
 {
   char files[SECTOR_SIZE];
-  int i = 0;
+  char sectors[SECTOR_SIZE];
+  char map[MAP_SECTOR];
+  char currentPath[15];
+  int i, j;
 
-  searchDir(path, result, &parentIndex);
+  searchDir(path, result, &parentIndex, i);
   if (*result == FALSE)
     *result = NOT_FOUND;
     return;
 
-  path
-  if (i < 32 && files[i*16] == parentIndex)
+  i++;
+  j = 0;
+  while (j < MAX_FILENAME && path[i] != '\0')
   {
-
+    currentPath[j] = path[i];
   }
-}
-int equalPath(char* p1, char* p2)
-{
-  int i = 0;
-
-  while (p1[i] == p2[i] && i < MAX_DIRNAME)
+  readSector(files, FILES_SECTOR);
+  while (k < 32)
   {
+    fileEqual = equalPath(currentPath, files+k*16+1);
+    if (files[k*16] == parentIndex && fileEqual == TRUE)
+    {
+      files[k*16+1] = '\0';
+      parentIndex = k;
+      break;
+    }
+    else
+    {
+      j++;
+    }
+  }
+  if (k == 32)
+    *result = NOT_FOUND;
+    return;
+
+  clear(files+parentIndex*16, 16);
+
+  readSector(sectors, SECTORS_SECTOR];
+  readSector(map, MAP_SECTOR);
+
+  i = 0;
+  do
+  {
+    map[sectors[i+parentIndex*MAX_SECTORS]] = '\0';
     i++;
+  } while (i < MAX_SECTORS && sectors[i+parentIndex*MAX_SECTORS] != '\0');
+
+  clear(sectors+parentIndex*16, 16);
+  *result = 0;
+
+  writeSector(map, MAP_SECTOR);
+  writeSector(files, FILES_SECTOR);
+  writeSector(dirs, DIRS_SECTOR);
+  writeSector(sectors, SECTORS_SECTOR);
+}
+
+void deleteDirectory(char *path, int *success, char parentIndex)
+{
+  char dirs[SECTOR_SIZE];
+  char files[SECTOR_SIZE];
+  char currentPath[15];
+  int i, j;
+
+  searchDir(path, success, &parentIndex, &i);
+  if (*success = FALSE)
+    *success = NOT_FOUND;
+    return;
+
+  i++;
+  j = 0;
+  while (path[i] != '\0' && j < MAX_FILENAME)
+  {
+    currentPath[j] = path[i];
+    i++;
+    j++;
   }
-  if (p1[i] != p2[i])
-    return FALSE;
-  return TRUE;
+
+  j = 0;
+  readSector(dirs, DIRS_SECTOR);
+  while (j < 32)
+  {
+    fileEqual = equalPath(currentPath, dirs+j*16+1);
+    if (fileEqual == TRUE && dirs[j*16] == parentIndex)
+      break;
+    j++;
+  }
+  if (j == 32)
+    *success = NOT_FOUND;
+    return;
+
+  dirs[j*16+1] = '\0';
+  
+
 }
 
 void searchDir(char *path, int *success, char *parentIndex, int *idx)
@@ -408,7 +471,7 @@ void putArgs (char curdir, char argc, char **argv) {
    args[1] = argc;
    i = 0;
    j = 0;
-   for (p = 1; p < ARGS_SECTOR && i < argc; ++p) {
+   for (p = 2; p < ARGS_SECTOR && i < argc; ++p) {
       args[p] = argv[i][j];
       if (argv[i][j] == '\0') {
          ++i;
@@ -441,7 +504,7 @@ void getArgv (char index, char *argv) {
 
    i = 0;
    j = 0;
-   for (p = 1; p < ARGS_SECTOR; ++p) {
+   for (p = 2; p < ARGS_SECTOR; ++p) {
       if (i == index) {
          argv[j] = args[p];
          ++j;
