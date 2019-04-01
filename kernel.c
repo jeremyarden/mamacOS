@@ -401,7 +401,8 @@ void deleteDirectory(char *path, int *success, char parentIndex)
     return;
 
   dirs[j*16+1] = '\0';
-  
+  deleteFileFromSector(parentIndex);
+
 
 }
 
@@ -529,4 +530,38 @@ void terminateProgram (int *result) {
    shell[4] = 'l';
    shell[5] = '\0';
    executeProgram(shell, 0x2000, result, 0xFF);
+}
+
+void deleteFileFromSector(char parentIndex)
+{
+  char files[SECTOR_SIZE];
+  char sectors[SECTORS_SECTOR];
+  char map[SECTOR_SIZE];
+  int i;
+
+  readSector(files, FILES_SECTOR);
+  readSector(sectors, SECTORS_SECTOR);
+  readSector(map, MAP_SECTOR);
+  clear(files+parentIndex*16, 16);
+
+  for (int j = 0; j < 32; j++)
+  {
+    if (files[j*16] == parentIndex)
+    {
+      files[j*16+1] = '\0';
+      i = 0;
+      do
+      {
+        nap[sectors[i+j*MAX_SECTORS]] = '\0';
+        i++;
+      } while (i < MAX_SECTORS && sectors[i+j*MAX_SECTORS] != '\0');
+
+      clear(sectors+j*16, 16);
+    }
+  }
+
+  writeSector(map, MAP_SECTOR);
+  writeSector(files, FILES_SECTOR);
+  writeSector(dirs, DIRS_SECTOR);
+  writeSector(sectors, SECTORS_SECTOR);
 }
