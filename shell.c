@@ -32,6 +32,8 @@ int main() {
     char argc;
     char argv[4][16];
     int result;
+    char cd[2];
+    char comm[128];
 
     //interrupt(0x21, 0x00, '$', 0x00, 0x00);
     while(1) {
@@ -41,73 +43,58 @@ int main() {
         
         interrupt(0x21, 0x02, dirs, 257, 0x00); /* read sector dirs */
         
-        /*if (command[0] ==  'c' && command[1] == 'd') { //implementasi cd
-            if (command[2] == '.' && command[3] == '.') {
-                if (curdir != 0xFF) {
-                    // pindah ke parent dir
-                    curdir = dirs[curdir*16];
-                }
-            }
-            else if (command[2] == ' ') {
-                if (command[3] == '.' && command[4] == '.') {
-                    if (curdir != 0xFF) {
-                        // pindah ke parent dir
-                        curdir = dirs[curdir*16];
-                    }
-                }
-                else {
-                    // pindah ke child dir dengan nama yang sesuai inputan 
-                    int i = 0;
-                    int ketemu = FALSE;
-                    while (i*16 <= 512 || !(ketemu)) {
-                        if (dirs[i*16] == curdir) {
-                            int j = i*16+1; // idx ngebaca dirs 
-                            int k = 3; // idx ngebaca command 
-                            while (j <= i*16+15 || (dirs[j] != '\0' && command[k] != '\0')) {
-                                if (dirs[j] == command[k]) {
-                                    j++;
-                                    k++;
-                                }
-                                if ((j == i*16+15) && (command[k+1] == '\0')) { // kasus kalo dirs udh diujung dan command udh diujung juga 
-                                    curdir = i;
-                                    ketemu = TRUE;
-                                }
-                            }
-                            if (dirs[j] == command[k])  {
-                                curdir = i;
-                                ketemu = TRUE;
-                            }
-                            else {
-                                i++;
-                            }
-                        }
-                        else {
-                            i++;
-                        }
-                    }
-                }
-            }
-        }*/
+        // split command ke cd
+        cd[0] = command[0]; // cd berisi "cd"
+        cd[1] = command[1]; 
         if (stringcmp(command, "cd..") == TRUE || stringcmp(command, "cd ..") == TRUE) {
-            if (curdir != 0xFF) {
+            if (curdir != USED) {
                 // pindah ke parent dir
-                curdir = dirs[curdir*16];
+                curdir = dirs[curdir*MAX_SECTORS];
             }
         }
-        else { /* menjalankan program */
-            if (command[0] == '.' && command[1] == '/') {
-                int i = 2; /* indeks ngebaca command */
-                int j = 0; /* indeks perintah */
-                char *perintah;
-                while (command[i] != ' ') {
-                    perintah[j] = command[i];
-                    j++;
+        else if (stringcmp(cd, "cd")) { //implementasi cd
+            // split command setelah " " ke comm
+            int i = 3;
+            while (command[i] != '\0') { //comm berisi argumen command
+                comm[i-3] = command[i];
+                i++;
+            }
+            // pindah ke child dir dengan nama yang sesuai inputan 
+            i = 0;
+            int ketemu = FALSE;
+            while (i*16 <= SECTOR_SIZE || !(ketemu)) {
+                if (dirs[i*MAX_SECTORS] == curdir) {
+                    int j = i*MAX_SECTORS+1; // idx ngebaca dirs 
+                    char dir[MAX_SECTORS];
+                    int k = 0;
+                    while (command[j] != '\0') { // masukin dirs ke dir biar bisa di compare
+                        dir[k] = dirs[j];
+                        k++;
+                        j++;
+                    }
+                    if (stringlen(dir) == stringlen(comm)) {
+                        if (stringcmp(dir,comm)) {
+                            curdir = i; /* pindah directory */
+                            ketemu = TRUE; /* stop while loop */
+                        }
+                    }
+                }
+            }
+            if (!ketemu) {
+                interrupt(0x21, 0x00, "Directory not found", 0x00, 0x00);
+            }        
+        }
+        else { 
+            if (stringcmp(cd, "./")) {
+                int i = 2;
+                while (command[i] != ' ') { //comm berisi program yang ingin di eksekusi
+                    comm[i-2] = command[i];
                     i++;
                 }
                 i++; 
                 argc = 0;
                 while (command[i] != '\0') {
-                    int k = 0; /* indeks argv[argc] */
+                    int k = 0; // indeks argv[argc]
                     while (command[i] != ' ') {
                         argv[argc][k] = command[i];
                         k++;
@@ -116,22 +103,19 @@ int main() {
                     argc++;
                     i++;
                 }
-                interrupt(0x21, 0x20, curdir, argc, argv); /* put args */
-                interrupt(0x21, 0x06, perintah, 0x2000, &result); /* execute program */
+                interrupt(0x21, 0x20, curdir, argc, argv); // put args
+                interrupt(0x21, 0x06, comm, 0x2000, &result); // execute program
             }
             else {
-                int i = 0; /* indeks ngebaca command */
-                int j = 0; /* indeks perintah */
-                char *perintah;
-                while (command[i] != ' ') {
-                    perintah[j] = command[i];
-                    j++;
+                int i = 0;
+                while (command[i] != ' ') { //comm berisi program yang ingin di eksekusi
+                    comm[i] = command[i];
                     i++;
                 }
                 i++; 
                 argc = 0;
                 while (command[i] != '\0') {
-                    int k = 0; /* indeks argv[argc] */
+                    int k = 0; // indeks argv[argc]
                     while (command[i] != ' ') {
                         argv[argc][k] = command[i];
                         k++;
@@ -140,8 +124,8 @@ int main() {
                     argc++;
                     i++;
                 }
-                interrupt(0x21, 0x20, 0xFF, argc, argv); /* put args */
-                interrupt(0x21, 0x06, perintah, 0x21000, &result); /* execute program */
+                interrupt(0x21, 0x20, USED, argc, argv); // put args
+                interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
             }
             if (result) {
                 interrupt(0x21, 0x00, "Program executed", 0x00, 0x00);
