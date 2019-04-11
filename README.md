@@ -1,4 +1,4 @@
-# mamacOS
+# milOS
 
 Hai para sobat mancing mania
 
