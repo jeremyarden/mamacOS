@@ -46,14 +46,14 @@ void getArgv (char index, char *argv);
 int equalPath(char* p1, char* p2);
 
 int main() {
-    char buffer[MAX_SECTORS*SECTOR_SIZE];
-    int success;
-    
+    char buffer[SECTOR_SIZE*MAX_SECTORS];
     makeInterrupt21();
-    interrupt(0x21, 0xFF << 8 | 0x6, "shell", 0x2000, &success);
+    interrupt(0x21, 0x00, "milOS v0.69\r\n", 0, 0, 0);
+    interrupt(0x21, 0x07, 0, 0, 0);
     
     while (1);
 }
+
 
 int mod(int a, int b) {
     while(a >= b) {
@@ -181,17 +181,25 @@ void clear(char *buffer, int length) {
 void executeProgram(char *path, int segment, int *result, char parentIndex)
 {
     char buffer[MAX_SECTORS*SECTOR_SIZE];
+    int success;
     int i;
-    
-    readFile(buffer, path, result, parentIndex);
-    if (*result == TRUE)
+
+    readFile(buffer, path, &success, parentIndex);
+    if (success == 0)
     {
-        for (i = 0; i < (MAX_SECTORS*SECTOR_SIZE); i++)
+        for (i = 0; i < MAX_SECTORS*SECTOR_SIZE; i++)
         {
             putInMemory(segment, i, buffer[i]);
         }
         launchProgram(segment);
+        *result = TRUE;
     }
+    else
+    {
+        printString("failed");
+        *result = FALSE;
+    }
+    
 }
 
 void readFile(char *buffer, char *path, int *result, char parentIndex)
@@ -203,7 +211,7 @@ void readFile(char *buffer, char *path, int *result, char parentIndex)
     
     searchDir(path, result, &parentIndex, &i);
     
-    if (result == FALSE)
+    if (*result == FALSE)
     {
         *result = NOT_FOUND;
         return;
@@ -211,7 +219,6 @@ void readFile(char *buffer, char *path, int *result, char parentIndex)
     
     readSector(files, FILES_SECTOR);
     k = 0;
-    i++;
     clear(currentPath, MAX_DIRNAME);
     while (k < MAX_FILENAME && path[i] != '\0')
     {
@@ -257,7 +264,6 @@ void writeFile(char *buffer, char *path, int *sectors, char parentIndex)
     int i, j;
     
     readSector(map, MAP_SECTOR);
-    
     
     
 }
@@ -336,10 +342,11 @@ int equalPath(char* p1, char* p2)
     {
         return FALSE;
     }
-    else
+    else if (p1[i] == '\0' && p2[i] == '\0' && i != 0)
     {
         return TRUE;
     }
+    return TRUE;
 }
 void deleteFile(char *path, int *result, char parentIndex)
 {
@@ -455,9 +462,15 @@ void searchDir(char *path, int *success, char *parentIndex, int *idx)
     int i,j,k,dirEqual;
     
     i = 0;
-    while (i < MAX_FILENAME && path[i] != '/')
+    while (i < MAX_FILENAME && path[i] != '/' && path[i] != '\0')
     {
         currentPath[i] = path[i];
+        i++;
+    }
+    if(path[i] == '\0')
+    {
+        *success = 5;
+        return;
     }
     j = 0;
     clear(dirs, SECTOR_SIZE);
@@ -561,7 +574,7 @@ void getArgv (char index, char *argv) {
            argv[j] = args[p];
            ++j;
        }
-       
+       /* code */
        if (args[p] == '\0') {
            if (i == index) {
                break;
@@ -590,14 +603,14 @@ void deleteFileFromSector(char parentIndex)
     char files[SECTOR_SIZE];
     char sectors[SECTORS_SECTOR];
     char map[SECTOR_SIZE];
-    int i;
+    int i, j;
     
     readSector(files, FILES_SECTOR);
     readSector(sectors, SECTORS_SECTOR);
     readSector(map, MAP_SECTOR);
     clear(files+parentIndex*16, 16);
     
-    for (int j = 0; j < 32; j++)
+    for (j = 0; j < 32; j++)
     {
         if (files[j*16] == parentIndex)
         {
