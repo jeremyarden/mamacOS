@@ -87,44 +87,48 @@ int main() {
         else { 
             if (stringcmp(cd, "./")) {
                 int i = 2;
-                while (command[i] != ' ') { //comm berisi program yang ingin di eksekusi
-                    comm[i-2] = command[i];
+                while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
+                    comm[i] = command[i];
                     i++;
                 }
-                i++; 
-                argc = 0;
-                while (command[i] != '\0') {
-                    int k = 0; // indeks argv[argc]
-                    while (command[i] != ' ') {
-                        argv[argc][k] = command[i];
-                        k++;
+                if (command[i] == '\0') {
+                    i++; 
+                    argc = 0;
+                    while (command[i] != '\0') {
+                        int k = 0; // indeks argv[argc]
+                        while (command[i] != ' ') {
+                            argv[argc][k] = command[i];
+                            k++;
+                            i++;
+                        }
+                        argc++;
                         i++;
                     }
-                    argc++;
-                    i++;
+                    interrupt(0x21, 0x20, USED, argc, argv); // put args
                 }
-                interrupt(0x21, 0x20, curdir, argc, argv); // put args
                 interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
             }
             else {
                 int i = 0;
-                while (command[i] != ' ') { //comm berisi program yang ingin di eksekusi
+                while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
                     comm[i] = command[i];
                     i++;
                 }
-                i++; 
-                argc = 0;
-                while (command[i] != '\0') {
-                    int k = 0; // indeks argv[argc]
-                    while (command[i] != ' ') {
-                        argv[argc][k] = command[i];
-                        k++;
+                if (command[i] == '\0') {
+                    i++; 
+                    argc = 0;
+                    while (command[i] != '\0') {
+                        int k = 0; // indeks argv[argc]
+                        while (command[i] != ' ') {
+                            argv[argc][k] = command[i];
+                            k++;
+                            i++;
+                        }
+                        argc++;
                         i++;
                     }
-                    argc++;
-                    i++;
+                    interrupt(0x21, 0x20, USED, argc, argv); // put args
                 }
-                interrupt(0x21, 0x20, USED, argc, argv); // put args
                 interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
             }
             if (result) {
