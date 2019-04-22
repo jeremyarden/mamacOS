@@ -104,7 +104,7 @@ int main() {
                     i++;
                 }
                 interrupt(0x21, 0x20, curdir, argc, argv); // put args
-                interrupt(0x21, 0x06, comm, 0x2000, &result); // execute program
+                interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
             }
             else {
                 int i = 0;
