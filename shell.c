@@ -53,7 +53,7 @@ int main() {
                 curdir = dirs[curdir*MAX_SECTORS];
             }
         }
-        else if (stringcmp(cd, "cd")) { //implementasi cd
+        else if (stringcmp(cd, "cd") == TRUE) { //implementasi cd
             // split command setelah " " ke comm
             int i = 3;
             while (command[i] != '\0') { //comm berisi argumen command
@@ -86,11 +86,13 @@ int main() {
             }        
         }
         else { 
-            // if (stringcmp(cd, "./")) {
+            // if (stringcmp(cd, "./") == TRUE) {
             //     i = 2;
+            //     int j = 0;
             //     while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
-            //         comm[i-2] = command[i];
+            //         comm[j] = command[i];
             //         i++;
+            //         j++;
             //     }
             //     if (command[i] != '\0') {
             //         i++; 
