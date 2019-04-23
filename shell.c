@@ -107,7 +107,7 @@ int main() {
             //         }
             //         //interrupt(0x21, 0x20, USED, argc, argv); // put args
             //     }
-            //     //interrupt(0x21, 0x06, comm, &result, ); // execute program
+            //     //interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
             // }
             // else {
                 i = 0;
