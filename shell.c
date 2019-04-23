@@ -34,12 +34,13 @@ int main() {
     int result;
     char cd[2];
     char comm[128];
+    int ketemu, i;
 
     //interrupt(0x21, 0x00, '$', 0x00, 0x00);
     while(1) {
         interrupt(0x21, 0x00, "$ ", 0x00, 0x00); /* print $ */
 
-        interrupt(0x21, 0x01, command, 0x00, 0x00); /* nerima input char dengan nama variabel command */
+        interrupt(0x21, 0x01, command, 0x01, 0x00); /* nerima input char dengan nama variabel command */
         
         interrupt(0x21, 0x02, dirs, 257, 0x00); /* read sector dirs */
         
@@ -47,8 +48,8 @@ int main() {
         cd[0] = command[0]; // cd berisi "cd"
         cd[1] = command[1]; 
         if (stringcmp(command, "cd..") == TRUE || stringcmp(command, "cd ..") == TRUE) {
-            if (curdir != USED) {
-                // pindah ke parent dir
+             if (curdir != USED) {
+                 // pindah ke parent dir
                 curdir = dirs[curdir*MAX_SECTORS];
             }
         }
@@ -61,7 +62,7 @@ int main() {
             }
             // pindah ke child dir dengan nama yang sesuai inputan 
             i = 0;
-            int ketemu = FALSE;
+            ketemu = FALSE;
             while (i*16 <= SECTOR_SIZE || !(ketemu)) {
                 if (dirs[i*MAX_SECTORS] == curdir) {
                     int j = i*MAX_SECTORS+1; // idx ngebaca dirs 
@@ -85,8 +86,31 @@ int main() {
             }        
         }
         else { 
-            if (stringcmp(cd, "./")) {
-                int i = 2;
+            // if (stringcmp(cd, "./")) {
+            //     int i = 2;
+            //     while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
+            //         comm[i] = command[i];
+            //         i++;
+            //     }
+            //     if (command[i] != '\0') {
+            //         i++; 
+            //         argc = 0;
+            //         while (command[i] != '\0') {
+            //             int k = 0; // indeks argv[argc]
+            //             while (command[i] != ' ') {
+            //                 argv[argc][k] = command[i];
+            //                 k++;
+            //                 i++;
+            //             }
+            //             argc++;
+            //             i++;
+            //         }
+            //         //interrupt(0x21, 0x20, USED, argc, argv); // put args
+            //     }
+            //     //interrupt(0x21, 0x06, comm, &result, ); // execute program
+            // }
+            // else {
+                i = 0;
                 while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
                     comm[i] = command[i];
                     i++;
@@ -104,39 +128,16 @@ int main() {
                         argc++;
                         i++;
                     }
-                    interrupt(0x21, 0x20, USED, argc, argv); // put args
+                    //interrupt(0x21, 0x20, USED, argc, argv); // put args
                 }
-                interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
-            }
-            else {
-                int i = 0;
-                while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
-                    comm[i] = command[i];
-                    i++;
-                }
-                if (command[i] != '\0') {
-                    i++; 
-                    argc = 0;
-                    while (command[i] != '\0') {
-                        int k = 0; // indeks argv[argc]
-                        while (command[i] != ' ') {
-                            argv[argc][k] = command[i];
-                            k++;
-                            i++;
-                        }
-                        argc++;
-                        i++;
-                    }
-                    interrupt(0x21, 0x20, USED, argc, argv); // put args
-                }
-                interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
-            }
-            if (result) {
-                interrupt(0x21, 0x00, "Program executed", 0x00, 0x00);
-            }
-            else {
-                interrupt(0x21, 0x00, "Execution error", 0x00, 0x00);
-            }
+                //interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
+            //}
+        //     if (result) {
+        //         interrupt(0x21, 0x00, "Program executed", 0x00, 0x00);
+        //     }
+        //     else {
+        //         interrupt(0x21, 0x00, "Execution error", 0x00, 0x00);
+            //}
         }
     }
 }
@@ -149,6 +150,8 @@ int stringlen(char* s)
     {
         i++;
     }
+#define INSUFFICIENT_SEGMT
+#define INSUFFICIENT_SEGMT
 
     return i;
 }
