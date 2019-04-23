@@ -87,9 +87,9 @@ int main() {
         }
         else { 
             // if (stringcmp(cd, "./")) {
-            //     int i = 2;
+            //     i = 2;
             //     while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
-            //         comm[i] = command[i];
+            //         comm[i-2] = command[i];
             //         i++;
             //     }
             //     if (command[i] != '\0') {
