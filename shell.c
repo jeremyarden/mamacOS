@@ -91,7 +91,7 @@ int main() {
                     comm[i] = command[i];
                     i++;
                 }
-                if (command[i] == '\0') {
+                if (command[i] != '\0') {
                     i++; 
                     argc = 0;
                     while (command[i] != '\0') {
@@ -114,7 +114,7 @@ int main() {
                     comm[i] = command[i];
                     i++;
                 }
-                if (command[i] == '\0') {
+                if (command[i] != '\0') {
                     i++; 
                     argc = 0;
                     while (command[i] != '\0') {
