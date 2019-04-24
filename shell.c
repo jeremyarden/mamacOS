@@ -86,32 +86,38 @@ int main() {
             }        
         }
         else { 
-            // if (stringcmp(cd, "./") == TRUE) {
-            //     i = 2;
-            //     int j = 0;
-            //     while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
-            //         comm[j] = command[i];
-            //         i++;
-            //         j++;
-            //     }
-            //     if (command[i] != '\0') {
-            //         i++; 
-            //         argc = 0;
-            //         while (command[i] != '\0') {
-            //             int k = 0; // indeks argv[argc]
-            //             while (command[i] != ' ') {
-            //                 argv[argc][k] = command[i];
-            //                 k++;
-            //                 i++;
-            //             }
-            //             argc++;
-            //             i++;
-            //         }
-            //         //interrupt(0x21, 0x20, USED, argc, argv); // put args
-            //     }
-            //     //interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
-            // }
-            // else {
+            if (stringcmp(cd, "./") == TRUE) {
+                i = 2;
+                int j = 0;
+                while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
+                    comm[j] = command[i];
+                    i++;
+                    j++;
+                }
+                if (command[i] != '\0') {
+                    i++; 
+                    argc = 0;
+                    while (command[i] != '\0') {
+                        int k = 0; // indeks argv[argc]
+                        while (command[i] != ' ') {
+                            argv[argc][k] = command[i];
+                            k++;
+                            i++;
+                        }
+                        argc++;
+                        i++;
+                    }
+                    //interrupt(0x21, 0x20, USED, argc, argv); // put args
+                }
+                //interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
+            }
+            else if (stringcmp(command, "resume 1")) {
+                interrupt(0x21, 0x33, 0x3000, &result, 0);
+            }
+            else if (stringcmp(command, "resume 2")) {
+                interrupt(0x21, 0x33, 0x4000, &result, 0);
+            }
+            else {
                 i = 0;
                 while (command[i] != ' ' && command[i] != '\0') { //comm berisi program yang ingin di eksekusi
                     comm[i] = command[i];
@@ -130,16 +136,16 @@ int main() {
                         argc++;
                         i++;
                     }
-                    //interrupt(0x21, 0x20, USED, argc, argv); // put args
+                    interrupt(0x21, 0x20, USED, argc, argv); // put args
                 }
-                //interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
-            //}
-        //     if (result) {
-        //         interrupt(0x21, 0x00, "Program executed", 0x00, 0x00);
-        //     }
-        //     else {
-        //         interrupt(0x21, 0x00, "Execution error", 0x00, 0x00);
-            //}
+                interrupt(0x21, 0x06, comm, 0x21000, &result); // execute program
+            }
+            if (result) {
+                interrupt(0x21, 0x00, "Program executed", 0x00, 0x00);
+            }
+            else {
+                interrupt(0x21, 0x00, "Execution error", 0x00, 0x00);
+            }
         }
     }
 }
