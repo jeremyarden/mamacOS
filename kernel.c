@@ -1,3 +1,4 @@
+#define SUCCESS 0
 #define MAX_BYTE 256
 #define SECTOR_SIZE 512
 #define MAX_DIRS 32
@@ -20,18 +21,28 @@
 #define INSUFFICIENT_DIR_ENTRIES -1
 #define EMPTY 0x00
 #define USED 0xFF
+#define INSUFFICIENT_SEGMENTS -2
+
+#define MAIN
+#include "proc.h"
 
 int mod (int a, int b);
 int div (int a, int b);
+void killProcess(int segment, int *result);
+void resumeProcess(int segment, int *result);
+void pauseProcess(int segment, int *result);
+void sleep();
+void yieldControl();
+void handleTimerInterrupt(int segment, int stackPointer);
 void handleInterrupt21 (int AX, int BX, int CX, int DX);
 void printString(char *string);
-void readString(char *string);
+void readString(char *string, int disableProcessControls);
 void readSector(char *buffer, int sector);
 void writeSector(char *buffer, int sector);
 void readFile(char *buffer, char *path, int *result, char parentIndex);
 void clear(char *buffer, int length);
 void writeFile(char *buffer, char *path, int *sectors, char parentIndex);
-void executeProgram(char *path, int segment, int *result, char parentIndex);
+void executeProgram(char *path, int *result, char parentIndex);
 void makeDirectory(char *path, int *result, char parentIndex);
 void writeFile(char *buffer, char *path, int *sectors, char parentIndex);
 void deleteFile(char *path, int *result, char parentIndex);
@@ -46,12 +57,119 @@ void getArgv (char index, char *argv);
 int equalPath(char* p1, char* p2);
 
 int main() {
-    char buffer[SECTOR_SIZE*MAX_SECTORS];
+    char shell[6];
+
+    shell[0] = 's';
+    shell[1] = 'h';
+    shell[2] = 'e';
+    shell[3] = 'l';
+    shell[4] = 'l';
+    shell[5] = '\0';
+
+    initializeProcStructures();
     makeInterrupt21();
+    makeTimerInterrupt();
     interrupt(0x21, 0x00, "milOS v0.69\r\n", 0, 0, 0);
-    interrupt(0x21, 0x07, 0, 0, 0);
+    interrupt(0x21, (0xFF << 8) | 0x06, shell, 0, 0xFF);
     
     while (1);
+}
+
+void killProcess(int segment, int *result) {
+  struct PCB *pcb;
+  int res;
+  setKernelDataSegment();
+
+  pcb = getPCBOfSegment(segment);
+  if (pcb != NULL) {
+    releaseMemorySegment(pcb->segment);
+    releasePCB(pcb);
+    res = SUCCESS;
+  } else {
+    res = NOT_FOUND;
+  }
+
+  restoreDataSegment();
+  *result = res;
+}
+
+void resumeProcess(int segment, int *result) {
+  struct PCB *pcb;
+  int res;
+  setKernelDataSegment();
+
+  pcb = getPCBOfSegment(segment);
+  if (pcb != NULL && pcb->state == PAUSED) {
+    pcb->state = READY;
+    addToReady(pcb);
+    res = SUCCESS;
+  } else {
+    res = NOT_FOUND;
+  }
+
+  restoreDataSegment();
+  *result = res;
+}
+
+void pauseProcess(int segment, int *result) {
+  struct PCB *pcb;
+  int res;
+
+  setKernelDataSegment();
+
+  pcb = getPCBOfSegment(segment);
+  if (pcb != NULL && pcb->state != PAUSED) {
+    pcb->state = PAUSED; res = SUCCESS;
+  } else {
+    res = NOT_FOUND;
+  }
+
+  restoreDataSegment();
+  *result = res;
+} 
+
+void sleep() {
+  setKernelDataSegment();
+
+  running->state = PAUSED;
+
+  restoreDataSegment();
+  yieldControl();
+} 
+
+void yieldControl() {
+  interrupt(0x08, 0, 0, 0, 0);
+}
+
+void handleTimerInterrupt(int segment, int stackPointer) {
+  struct PCB *currPCB;
+  struct PCB *nextPCB;
+
+  setKernelDataSegment();
+
+  currPCB = getPCBOfSegment(segment);
+  currPCB->stackPointer = stackPointer;
+  if (currPCB->state != PAUSED) {
+    currPCB->state = READY;
+    addToReady(currPCB);
+  }
+
+  do {
+    nextPCB = removeFromReady();
+  }
+  while (nextPCB != NULL && (nextPCB->state == DEFUNCT || nextPCB->state == PAUSED));
+
+  if (nextPCB != NULL) {
+    nextPCB->state = RUNNING;
+    segment = nextPCB->segment;
+    stackPointer = nextPCB->stackPointer;
+    running = nextPCB;
+  } else {
+    running = &idleProc;
+  }
+
+  restoreDataSegment();
+  returnFromTimer(segment, stackPointer);
 }
 
 
@@ -71,7 +189,7 @@ int div(int a, int b) {
 }
 
 void handleInterrupt21 (int AX, int BX, int CX, int DX)
-{/* condition/* condition */
+{
     char AL, AH;
     AL = (char) (AX);
     AH = (char) (AX >> 8);
@@ -81,7 +199,7 @@ void handleInterrupt21 (int AX, int BX, int CX, int DX)
             printString(BX);
             break;
         case 0x01:
-            readString(BX);
+            readString(BX, CX);
             break;
         case 0x02:
             readSector(BX, CX);
@@ -96,7 +214,7 @@ void handleInterrupt21 (int AX, int BX, int CX, int DX)
             writeFile(BX, CX, DX, AH);
             break;
         case 0x06:
-            executeProgram(BX, CX, DX, AH);
+            executeProgram(BX, CX, AH);
             break;
         case 0x07:
             terminateProgram(BX);
@@ -122,6 +240,21 @@ void handleInterrupt21 (int AX, int BX, int CX, int DX)
         case 0X23:
             getArgv(BX, CX);
             break;
+        case 0x30:
+            yieldControl();
+            break;
+        case 0x31:
+            sleep();
+            break;
+        case 0x32:
+            pauseProcess(BX,CX);
+            break;
+        case 0x33:
+            resumeProcess(BX, CX);
+            break;
+        case 0x34:
+            killProcess(BX, CX);
+            break;
         default:
             printString("Invalid interrupt");
     }
@@ -139,13 +272,20 @@ void printString(char *string)
     }
 }
 
-void readString(char *string)
+void readString(char *string, int disableProcessControls)
 {
     int i = 0;
-    
+
     string[i] = interrupt(0x16, 0, 0, 0, 0);
     while (string[i] != '\r')
     {
+        if (string[i] == 0x03 && !disableProcessControls) {
+            terminateProgram(0);
+        }
+        else if (string[i] == 0x1A && !disableProcessControls) {
+            sleep();
+            resumeProcess(0x2000, 0);
+        }
         interrupt(0x10, 0xE00 + string[i], 0, 0, 0);
         if (string[i] == '\b')
         {
@@ -178,29 +318,42 @@ void clear(char *buffer, int length) {
     }
 }
 
-void executeProgram(char *path, int segment, int *result, char parentIndex)
-{
-    char buffer[MAX_SECTORS*SECTOR_SIZE];
-    int success;
-    int i;
+void executeProgram(char *path, int *result, char parentIndex) {
+  struct PCB* pcb;
+  int segment;
+  int i, fileIndex;
+  char buffer[MAX_SECTORS * SECTOR_SIZE];
+  readFile(buffer, path, result, parentIndex);
 
-    readFile(buffer, path, &success, parentIndex);
-    if (success == 0)
-    {
-        for (i = 0; i < MAX_SECTORS*SECTOR_SIZE; i++)
-        {
-            putInMemory(segment, i, buffer[i]);
-        }
-        launchProgram(segment);
-        *result = TRUE;
+  if (*result != NOT_FOUND) {
+    setKernelDataSegment();
+    segment = getFreeMemorySegment();
+    restoreDataSegment();
+
+    fileIndex = *result;
+    if (segment != NO_FREE_SEGMENTS) {
+      setKernelDataSegment();
+
+      pcb = getFreePCB();
+      pcb->index = fileIndex;
+      pcb->state = STARTING;
+      pcb->segment = segment;
+      pcb->stackPointer = 0xFF00;
+      pcb->parentSegment = running->segment;
+      addToReady(pcb);
+
+      restoreDataSegment();
+      for (i = 0; i < SECTOR_SIZE * MAX_SECTORS; i++) {
+        putInMemory(segment, i, buffer[i]);
+      }
+      initializeProgram(segment);
+      sleep();
+    } else {
+      *result = INSUFFICIENT_SEGMENTS;
     }
-    else
-    {
-        printString("failed");
-        *result = FALSE;
-    }
-    
+  }
 }
+
 
 void readFile(char *buffer, char *path, int *result, char parentIndex)
 {
@@ -254,7 +407,7 @@ void readFile(char *buffer, char *path, int *result, char parentIndex)
         readSector(buffer+i*SECTOR_SIZE, sectors[i+parentIndex*MAX_SECTORS]);
         i++;
     } while (i < MAX_SECTORS && sectors[i+parentIndex*MAX_SECTORS] != '\0');
-    *result = 0;
+    *result = parentIndex;
 }
 
 void writeFile(char *buffer, char *path, int *sectors, char parentIndex)
@@ -517,7 +670,7 @@ void searchDir(char *path, int *success, char *parentIndex, int *idx)
             j++;
         }
     }
-    if (j == 32)
+    if (j == 32)   
     {
         *success = FALSE;
         return;
@@ -587,16 +740,19 @@ void getArgv (char index, char *argv) {
 }
 
 void terminateProgram (int *result) {
-   char shell[6];
-   shell[0] = 's';
-   shell[1] = 'h';
-   shell[2] = 'e';
-   shell[3] = 'l';
-   shell[4] = 'l';
-   shell[5] = '\0';
-   executeProgram(shell, 0x2000, result, 0xFF);
-}
+  int parentSegment;
+  setKernelDataSegment();
 
+  parentSegment = running->parentSegment;
+  releaseMemorySegment(running->segment);
+  releasePCB(running);
+
+  restoreDataSegment();
+  if (parentSegment != NO_PARENT) {
+    resumeProcess(parentSegment, result);
+  }
+  yieldControl();
+}
 
 void deleteFileFromSector(char parentIndex)
 {
